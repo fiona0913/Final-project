@@ -47,7 +47,7 @@ The Portable Soil Monitor is a device designed for real-time monitoring of soil 
 ## Communication and Workflow
 
 ### 1. Device Communication Flow
-![Device Communication Flow](diagrams/Device%20Communication%20Flow.jpg)
+![Device Communication Flow](diagrams/Device_Communication_Flow.jpg)
 
 ### 2. Functional Diagram
 ![Device Functional Diagram](diagrams/Device%20Functional%20Diagram.jpg)
