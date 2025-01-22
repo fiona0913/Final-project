@@ -19,7 +19,7 @@ The Portable Soil Monitor is a device designed for real-time monitoring of soil 
 ## Hardware Design
 
 ### 1. Overall Sketch
-*(Insert the overall sketch of the device here, showing physical components such as sensors, stepper motor, LEDs, and buttons.)*
+![Overall Sketch](Slides/1.png)
 
 ---
 
@@ -27,7 +27,9 @@ The Portable Soil Monitor is a device designed for real-time monitoring of soil 
 - **Sensor**: DFRobot Capacitive Soil Moisture Sensor v2 (SEN0193).
 - **Functionality**: Measures soil moisture levels and transmits data wirelessly to the main control chip (ESP32).
 - **Power**: Solar panel as the primary power source, with a built-in lithium battery as backup.
-- **Diagram**: *(Insert detailed sketch of the sensing device here.)*
+- **Diagram**:
+![Sensing Device](Slides/2.png)
+
 
 ---
 
@@ -38,6 +40,7 @@ The Portable Soil Monitor is a device designed for real-time monitoring of soil 
   - **Touch Button**: TTP223 capacitive touch module for manual refresh.
 - **Power**: Powered by a 3.7V lithium battery with optimized power consumption for stepper motors and LEDs.
 - **Diagram**: *(Insert detailed sketch of the display device here.)*
+![Display Device](Slides/3.png)
 
 ---
 
