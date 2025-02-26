@@ -1,4 +1,11 @@
-24656086559822501
+24656151306348960
+514_KiCAD_Demo
+XIAO_ESP32_SENSE
+
+
+0
+14
+14
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -99371,10 +99378,3 @@ x27_stepper_two_holes
 0
 4
 4
-xiao ESP32C3_PCB
-MOUDLE14P-SMD-2.54-21X17.8MM
-
-
-0
-14
-14
