@@ -1,0 +1,192 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEClient.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+#include <Stepper.h>  // <-- Stepper library
+
+// --------------------
+// OLED Display Configuration
+// --------------------
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// --------------------
+// LED Indicator Pin
+// --------------------
+// Here, we assume the LED is wired such that HIGH = LED ON (disconnected)
+// and LOW = LED OFF (connected)
+#define LED_PIN D7
+
+// --------------------
+// BLE Configuration (must match Sensor-side)
+// --------------------
+#define SERVICE_UUID "3bae937a-a450-4601-9220-634752d6f024"
+#define CHARACTERISTIC_UUID "5f2413ca-813e-4873-9dc4-b640b2dfcbdf"
+
+BLEClient* pClient;
+BLERemoteCharacteristic* pRemoteCharacteristic;
+bool connected = false;
+
+// --------------------
+// Stepper Motor Configuration
+// --------------------
+// Adjust STEPS_PER_REV based on your motor (e.g., 200 for NEMA17, 2048 for 28BYJ-48)
+#define STEPS_PER_REV 200
+
+// Define the 4 pins that drive the stepper motor
+// (Ensure these pins are connected to your stepper driver or transistor array)
+#define STEPPER_PIN1 D1
+#define STEPPER_PIN2 D2
+#define STEPPER_PIN3 D3
+#define STEPPER_PIN4 D4
+
+// Create a Stepper object
+// IMPORTANT: The Stepper library expects pins in the order: (steps, pin1, pin3, pin2, pin4)
+Stepper myStepper(STEPS_PER_REV, STEPPER_PIN1, STEPPER_PIN3, STEPPER_PIN2, STEPPER_PIN4);
+
+// Variable to track the current stepper position (in steps)
+int currentStepperPos = 0;
+
+// --------------------
+// BLE Client Callback Class to Update Connection Status and Control LED
+// --------------------
+class MyClientCallback : public BLEClientCallbacks {
+  void onConnect(BLEClient* pclient) override {
+    Serial.println("Connected to BLE Sensor!");
+    connected = true;
+    // Turn OFF LED when connected (assuming LOW means off)
+    digitalWrite(LED_PIN, LOW);
+    Serial.print("LED: OFF");
+  }
+  
+  void onDisconnect(BLEClient* pclient) override {
+    Serial.println("Disconnected from BLE Sensor!");
+    connected = false;
+    // Turn ON LED when disconnected
+    digitalWrite(LED_PIN, HIGH);
+    Serial.print("LED: ON");
+  }
+};
+
+// --------------------
+// BLE Notification Callback Function
+// Called when the Sensor sends a notification
+// --------------------
+void notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* pData, size_t length, bool isNotify) {
+  // Convert notification data into a String
+  String valueStr = "";
+  for (size_t i = 0; i < length; i++) {
+    valueStr += (char)pData[i];
+  }
+  Serial.print("Notification received: ");
+  Serial.println(valueStr);
+
+  // Convert the received data to an integer moisture value
+  int moisture = valueStr.toInt();
+  
+  // --------------------
+  // 1) Update the OLED Display with the Moisture Value
+  // --------------------
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 10);
+  display.print("Moisture:");
+  display.setCursor(0, 40);
+  display.print(moisture);
+  display.display();
+  
+  // --------------------
+  // 2) Move the Stepper Motor
+  // --------------------
+  // Map the moisture value (assumed range: 0..4095) to a stepper target position (0..STEPS_PER_REV)
+  int newPosition = map(moisture, 0, 4095, 0, STEPS_PER_REV);
+  // Calculate steps to move from the current position
+  int stepsToMove = newPosition - currentStepperPos;
+  Serial.print("Stepper moving: ");
+  Serial.println(stepsToMove);
+  
+  // Command the stepper motor to move by the calculated steps
+  myStepper.step(stepsToMove);
+  
+  // Update the current position to the new position
+  currentStepperPos = newPosition;
+}
+
+// --------------------
+// Function to Scan and Connect to the Target Sensor Device
+// --------------------
+void connectToSensor() {
+  BLEScan* pBLEScan = BLEDevice::getScan();
+  pBLEScan->setActiveScan(true);
+  // Scan for 5 seconds
+  BLEScanResults foundDevices = *pBLEScan->start(10);
+  Serial.println("Scanning for BLE devices...");
+  
+  for (int i = 0; i < foundDevices.getCount(); i++) {
+    BLEAdvertisedDevice device = foundDevices.getDevice(i);
+    // Check if the device advertises our target service UUID
+    if (device.haveServiceUUID() && device.getServiceUUID().equals(BLEUUID(SERVICE_UUID))) {
+      Serial.println("Found Sensor!");
+      pClient->connect(&device);
+      BLERemoteService* pRemoteService = pClient->getService(SERVICE_UUID);
+      if (pRemoteService) {
+        pRemoteCharacteristic = pRemoteService->getCharacteristic(CHARACTERISTIC_UUID);
+        if (pRemoteCharacteristic) {
+          Serial.println("Connected to Moisture Characteristic!");
+          // Register the notify callback if the characteristic supports notifications
+          if (pRemoteCharacteristic->canNotify()) {
+            pRemoteCharacteristic->registerForNotify(notifyCallback);
+          }
+        }
+      }
+      return;
+    }
+  }
+  Serial.println("Sensor not found!");
+}
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Set LED pin mode and initial state (disconnected: LED ON)
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);
+
+  // Initialize OLED display
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("OLED init failed");
+    while (true);
+  }
+  display.clearDisplay();
+  display.display();
+
+  // Initialize BLE
+  BLEDevice::init("SoilMoistureDisplay");
+  pClient = BLEDevice::createClient();
+  pClient->setClientCallbacks(new MyClientCallback());
+  
+  // Initialize stepper motor speed (RPM); adjust as needed
+  myStepper.setSpeed(15);
+  
+  // Attempt to connect to the Sensor device
+  connectToSensor();
+}
+
+void loop() {
+  // If not connected, try reconnecting and ensure LED remains ON
+  if (!connected) {
+    Serial.println("Reconnecting...");
+    digitalWrite(LED_PIN, HIGH);
+    Serial.println("LED: ON");
+    connectToSensor();
+  }
+  delay(5000);
+}
